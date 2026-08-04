@@ -3,8 +3,112 @@
 @section('title', 'Мотоциклы в аренде')
 
 @section('content')
-    <div x-data="{ modal: { open: false, id: null, name: '', bookings: [] } }" @keydown.escape.window="modal.open = false">
-        <div class="flex items-center justify-between mb-6">
+    @php
+        $motos = $motorcycles
+            ->map(
+                fn(\App\Models\Motorcycle $m) => [
+                    'id' => $m->id,
+                    'name' => $m->name,
+                    'year' => $m->year,
+                    'state_number' => $m->state_number,
+                    'comment' => $m->comment,
+                    'status' => $m->currentStatus()->value,
+                    'active' => $m->activeRental
+                        ? [
+                            'id' => $m->activeRental->id,
+                            'renter' => $m->activeRental->renter?->name,
+                            'started_at' => $m->activeRental->started_at->format('d.m.Y H:i'),
+                            'started_at_input' => $m->activeRental->started_at->format('Y-m-d\TH:i'),
+                            'ended_at' => $m->activeRental->ended_at?->format('d.m.Y H:i') ?? null,
+                        ]
+                        : null,
+                    'upcoming' => $m->upcomingRental
+                        ? [
+                            'id' => $m->upcomingRental->id,
+                            'renter' => $m->upcomingRental->renter?->name,
+                            'started_at' => $m->upcomingRental->started_at->format('d.m.Y H:i'),
+                            'ended_at' => $m->upcomingRental->ended_at?->format('d.m.Y H:i') ?? null,
+                        ]
+                        : null,
+                    'rentals' => $m->rentals
+                        ->map(
+                            fn(\App\Models\Rental $r) => [
+                                'id' => $r->id,
+                                'renter' => $r->renter?->name,
+                                'started_at' => $r->started_at->format('d.m.Y H:i'),
+                                'ended_at' => $r->ended_at?->format('d.m.Y H:i') ?? '—',
+                            ],
+                        )
+                        ->values()
+                        ->toArray(),
+                ],
+            )
+            ->values()
+            ->toArray();
+
+        $rentals = $activeRentals
+            ->map(
+                fn(\App\Models\Rental $r) => [
+                    'id' => $r->id,
+                    'motorcycle' => $r->motorcycle?->name,
+                    'renter' => $r->renter?->name,
+                    'started_at' => $r->started_at->format('d.m.Y H:i'),
+                    'ended_at' => $r->ended_at?->format('d.m.Y H:i') ?? '—',
+                    'total_amount_byn' => $r->total_amount_byn,
+                    'comment' => $r->comment,
+                ],
+            )
+            ->values()
+            ->toArray();
+    @endphp
+
+    <script>
+        window.homeData = {!! json_encode(
+            ['motorcycles' => $motos, 'activeRentals' => $rentals],
+            JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+        ) !!};
+
+        window.homeApp = () => ({
+            view: localStorage.getItem('homeView') || 'list',
+            search: '',
+            selected: null,
+            modal: {
+                open: false,
+                id: null,
+                name: '',
+                bookings: []
+            },
+            motorcycles: window.homeData.motorcycles,
+            activeRentals: window.homeData.activeRentals,
+            get filteredMotorcycles() {
+                const s = this.search.toLowerCase();
+                return this.motorcycles.filter(m =>
+                    m.name.toLowerCase().includes(s) ||
+                    (m.state_number || '').toLowerCase().includes(s) ||
+                    (m.active?.renter || '').toLowerCase().includes(s) ||
+                    (m.upcoming?.renter || '').toLowerCase().includes(s)
+                );
+            },
+            get filteredRentals() {
+                const s = this.search.toLowerCase();
+                return this.activeRentals.filter(r =>
+                    (r.motorcycle || '').toLowerCase().includes(s) ||
+                    (r.renter || '').toLowerCase().includes(s)
+                );
+            },
+            openReserve(m) {
+                this.modal = {
+                    open: true,
+                    id: m.id,
+                    name: m.name,
+                    bookings: m.rentals
+                };
+            },
+        });
+    </script>
+
+    <div x-data="homeApp()" x-init="$watch('view', v => localStorage.setItem('homeView', v))" @keydown.escape.window="modal.open = false">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <h1 class="text-2xl font-semibold text-moto-orange">Парк мотоциклов</h1>
             @hasanyrole(['admin', 'manager'])
                 <div class="flex gap-3">
@@ -32,92 +136,191 @@
             </div>
         @endif
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            @forelse ($motorcycles as $motorcycle)
-                <div class="bg-moto-card rounded-xl border border-neutral-700 p-5 shadow-md flex flex-col justify-between"
-                    :class="{ 'opacity-60': modal.open }">
+        <div class="flex flex-col sm:flex-row gap-4 mb-6">
+            <input type="text" x-model="search" placeholder="Поиск по названию, арендатору, госномеру..."
+                class="flex-1 bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">
+            <div class="inline-flex bg-moto-card rounded border border-neutral-700 p-1">
+                <button @click="view = 'list'"
+                    :class="view === 'list' ? 'bg-moto-orange text-white' : 'text-moto-muted'"
+                    class="px-4 py-2 rounded text-sm transition">Список</button>
+                <button @click="view = 'grid'"
+                    :class="view === 'grid' ? 'bg-moto-orange text-white' : 'text-moto-muted'"
+                    class="px-4 py-2 rounded text-sm transition">Сетка</button>
+            </div>
+        </div>
+
+        <!-- List -->
+        <div x-show="view === 'list'" class="bg-moto-card border border-neutral-700 rounded-xl overflow-hidden"
+            style="display: none;">
+            <table class="min-w-full text-sm text-left">
+                <thead class="bg-neutral-800 text-moto-muted">
+                    <tr>
+                        <th class="px-4 py-3 font-medium">Мотоцикл</th>
+                        <th class="px-4 py-3 font-medium">Статус</th>
+                        <th class="px-4 py-3 font-medium">Примечание</th>
+                        <th class="px-4 py-3 font-medium">Действия</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-700">
+                    <template x-for="m in filteredMotorcycles" :key="m.id">
+                        <tr class="hover:bg-neutral-800/50" x-data="{ open: false }">
+                            <td class="px-4 py-3">
+                                <div class="font-medium text-moto-text" x-text="m.name"></div>
+                                <div class="text-xs text-moto-muted"
+                                    x-text="m.year + ' г.' + (m.state_number ? ' · ' + m.state_number : '')"></div>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span
+                                    :class="m.status === 'free' ? 'bg-green-900/40 text-green-400 border border-green-800' :
+                                        'bg-red-900/40 text-red-400 border border-red-800'"
+                                    class="px-2 py-1 rounded text-xs font-medium"
+                                    x-text="m.status === 'free' ? 'Свободен' : 'В аренде'"></span>
+                                <div class="mt-2 text-xs text-moto-muted" x-show="m.active">
+                                    <span x-text="'Арендатор: ' + m.active?.renter"></span><br>
+                                    <span
+                                        x-text="'С: ' + m.active?.started_at + (m.active?.ended_at ? ' по ' + m.active?.ended_at : '')"></span>
+                                </div>
+                                <div class="mt-2 text-xs text-moto-muted" x-show="m.upcoming && !m.active">
+                                    <span x-text="'След. бронь: ' + m.upcoming?.renter"></span><br>
+                                    <span
+                                        x-text="'С: ' + m.upcoming?.started_at + (m.upcoming?.ended_at ? ' по ' + m.upcoming?.ended_at : '')"></span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 text-moto-muted" x-text="m.comment || ''"></td>
+                            <td class="px-4 py-3">
+                                @hasanyrole(['admin', 'manager'])
+                                    <div class="flex flex-wrap gap-2">
+                                        <button @click="openReserve(m)"
+                                            class="px-3 py-1.5 bg-moto-orange hover:bg-moto-orange-dark text-white rounded text-xs font-medium transition">Зарезервировать</button>
+                                        <template x-if="m.active">
+                                            <form method="POST" :action="'/rentals/' + m.active?.id" class="contents"
+                                                onsubmit="return confirm('Завершить аренду?')">
+                                                @csrf
+                                                @method('PATCH')
+                                                <input type="hidden" name="status" value="free">
+                                                <input type="hidden" name="started_at" :value="m.active?.started_at_input">
+                                                <button type="submit"
+                                                    class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 rounded text-xs font-medium transition">Завершить</button>
+                                            </form>
+                                        </template>
+                                        <a :href="'/motorcycles/' + m.id + '/edit'"
+                                            class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 rounded text-xs font-medium transition">Изм.</a>
+                                        <button @click="open = !open"
+                                            class="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 rounded text-xs transition"
+                                            x-text="open ? 'Скрыть' : 'Брони'"></button>
+                                    </div>
+                                    <div x-show="open" class="mt-3 text-xs text-moto-muted" x-cloak>
+                                        <p class="font-medium mb-1">Все резервы:</p>
+                                        <ul class="space-y-1">
+                                            <template x-for="b in m.rentals" :key="b.id">
+                                                <li x-text="b.renter + ' — ' + b.started_at + ' / ' + b.ended_at"></li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                @endhasanyrole
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            <p x-show="filteredMotorcycles.length === 0" class="px-4 py-6 text-center text-moto-muted">Нет мотоциклов.</p>
+        </div>
+
+        <!-- Grid -->
+        <div x-show="view === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+            <template x-for="m in filteredMotorcycles" :key="m.id">
+                <div class="bg-moto-card rounded-xl border border-neutral-700 p-5 shadow-md flex flex-col justify-between">
                     <div>
                         <div class="flex items-start justify-between mb-3">
                             <div>
-                                <h2 class="text-lg font-semibold text-moto-text">{{ $motorcycle->name }}</h2>
-                                <p class="text-sm text-moto-muted">{{ $motorcycle->year }} г.</p>
+                                <h2 class="text-lg font-semibold text-moto-text" x-text="m.name"></h2>
+                                <p class="text-sm text-moto-muted"
+                                    x-text="m.year + ' г.' + (m.state_number ? ' · ' + m.state_number : '')"></p>
                             </div>
-                            @php($status = $motorcycle->currentStatus())
-                            <span @class([
-                                'px-2 py-1 rounded text-xs font-medium',
-                                'bg-green-900/40 text-green-400 border border-green-800' =>
-                                    $status->value === 'free',
-                                'bg-red-900/40 text-red-400 border border-red-800' =>
-                                    $status->value === 'rented',
-                            ])>
-                                {{ $status->value === 'free' ? 'Свободен' : 'В аренде' }}
-                            </span>
+                            <span
+                                :class="m.status === 'free' ? 'bg-green-900/40 text-green-400 border border-green-800' :
+                                    'bg-red-900/40 text-red-400 border border-red-800'"
+                                class="px-2 py-1 rounded text-xs font-medium"
+                                x-text="m.status === 'free' ? 'Свободен' : 'В аренде'"></span>
                         </div>
-
-                        @if ($motorcycle->activeRental)
-                            <div class="text-sm text-moto-muted mb-3">
-                                <p>Арендатор: <span
-                                        class="text-moto-text">{{ $motorcycle->activeRental->renter->name }}</span></p>
-                                <p>С: {{ $motorcycle->activeRental->started_at->format('d.m.Y H:i') }}</p>
-                                @if ($motorcycle->activeRental->ended_at)
-                                    <p>По: {{ $motorcycle->activeRental->ended_at->format('d.m.Y H:i') }}</p>
-                                @endif
-                            </div>
-                        @elseif ($motorcycle->upcomingRental)
-                            <div class="text-sm text-moto-muted mb-3">
-                                <p>Следующая бронь: <span
-                                        class="text-moto-text">{{ $motorcycle->upcomingRental->renter->name }}</span></p>
-                                <p>С: {{ $motorcycle->upcomingRental->started_at->format('d.m.Y H:i') }}</p>
-                                @if ($motorcycle->upcomingRental->ended_at)
-                                    <p>По: {{ $motorcycle->upcomingRental->ended_at->format('d.m.Y H:i') }}</p>
-                                @endif
-                            </div>
-                        @endif
-
-                        @if ($motorcycle->comment)
-                            <p class="text-sm text-moto-muted mb-3 line-clamp-2">{{ $motorcycle->comment }}</p>
-                        @endif
+                        <div class="text-sm text-moto-muted mb-3" x-show="m.active">
+                            <p>Арендатор: <span class="text-moto-text" x-text="m.active?.renter"></span></p>
+                            <p x-text="'С: ' + m.active?.started_at"></p>
+                            <p x-show="m.active?.ended_at" x-text="'По: ' + m.active?.ended_at"></p>
+                        </div>
+                        <div class="text-sm text-moto-muted mb-3" x-show="m.upcoming && !m.active">
+                            <p>Следующая бронь: <span class="text-moto-text" x-text="m.upcoming?.renter"></span></p>
+                            <p x-text="'С: ' + m.upcoming?.started_at"></p>
+                            <p x-show="m.upcoming?.ended_at" x-text="'По: ' + m.upcoming?.ended_at"></p>
+                        </div>
+                        <p class="text-sm text-moto-muted mb-3 line-clamp-2" x-text="m.comment || ''" x-show="m.comment">
+                        </p>
                     </div>
-
                     @hasanyrole(['admin', 'manager'])
                         <div class="flex gap-2 mt-4">
-                            @php(
-    $bookings = $motorcycle->rentals->map(
-            fn($r) => [
-                'renter' => $r->renter?->name ?? '—',
-                'started_at' => $r->started_at->format('d.m.Y H:i'),
-                'ended_at' => $r->ended_at?->format('d.m.Y H:i') ?? '—'
-            ]
-        )->toArray()
-)
-                            <button data-bookings='@json($bookings)'
-                                @click="modal.open = true; modal.id = {{ $motorcycle->id }}; modal.name = '{{ $motorcycle->name }}'; modal.bookings = JSON.parse($event.currentTarget.dataset.bookings)"
-                                class="flex-1 bg-moto-orange hover:bg-moto-orange-dark text-white py-2 rounded text-sm font-medium transition">
-                                Зарезервировать
-                            </button>
-
-                            @if ($motorcycle->activeRental)
-                                <form method="POST" :action="'/rentals/' + {{ $motorcycle->activeRental->id }}"
-                                    class="contents" onsubmit="return confirm('Завершить аренду?')">
+                            <button @click="openReserve(m)"
+                                class="flex-1 bg-moto-orange hover:bg-moto-orange-dark text-white py-2 rounded text-sm font-medium transition">Зарезервировать</button>
+                            <template x-if="m.active">
+                                <form method="POST" :action="'/rentals/' + m.active?.id" class="contents"
+                                    onsubmit="return confirm('Завершить аренду?')">
                                     @csrf
                                     @method('PATCH')
                                     <input type="hidden" name="status" value="free">
-                                    <input type="hidden" name="started_at"
-                                        value="{{ $motorcycle->activeRental->started_at?->format('Y-m-d\TH:i') }}">
+                                    <input type="hidden" name="started_at" :value="m.active?.started_at_input">
                                     <button type="submit"
-                                        class="flex-1 bg-neutral-700 hover:bg-neutral-600 py-2 rounded text-sm font-medium transition">
-                                        Завершить
-                                    </button>
+                                        class="flex-1 bg-neutral-700 hover:bg-neutral-600 py-2 rounded text-sm font-medium transition">Завершить</button>
                                 </form>
-                            @endif
-                            <a href="{{ route('motorcycles.edit', $motorcycle) }}"
+                            </template>
+                            <a :href="'/motorcycles/' + m.id + '/edit'"
                                 class="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 rounded text-sm">Изм.</a>
                         </div>
                     @endhasanyrole
                 </div>
-            @empty
-                <p class="text-moto-muted col-span-full">Мотоциклов пока нет.</p>
-            @endforelse
+            </template>
+            <p x-show="filteredMotorcycles.length === 0" class="col-span-full text-moto-muted">Нет мотоциклов.</p>
+        </div>
+
+        <!-- Active rentals -->
+        <div class="mt-10">
+            <h2 class="text-xl font-semibold text-moto-orange mb-4">Действующие резервы</h2>
+            <div class="bg-moto-card border border-neutral-700 rounded-xl overflow-hidden">
+                <table class="min-w-full text-sm text-left">
+                    <thead class="bg-neutral-800 text-moto-muted">
+                        <tr>
+                            <th class="px-4 py-3 font-medium">Мотоцикл</th>
+                            <th class="px-4 py-3 font-medium">Арендатор</th>
+                            <th class="px-4 py-3 font-medium">Период</th>
+                            <th class="px-4 py-3 font-medium">Сумма, BYN</th>
+                            <th class="px-4 py-3 font-medium">Комментарий</th>
+                            <th class="px-4 py-3 font-medium"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-700">
+                        <template x-for="r in filteredRentals" :key="r.id">
+                            <tr class="hover:bg-neutral-800/50">
+                                <td class="px-4 py-3" x-text="r.motorcycle"></td>
+                                <td class="px-4 py-3" x-text="r.renter"></td>
+                                <td class="px-4 py-3" x-text="r.started_at + ' — ' + r.ended_at"></td>
+                                <td class="px-4 py-3" x-text="r.total_amount_byn ?? '—'"></td>
+                                <td class="px-4 py-3 text-moto-muted" x-text="r.comment || ''"></td>
+                                <td class="px-4 py-3">
+                                    @hasanyrole(['admin', 'manager'])
+                                        <form method="POST" :action="'/rentals/' + r.id" class="inline"
+                                            onsubmit="return confirm('Отменить резерв?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                class="text-red-400 hover:text-red-300 text-xs font-medium">Отменить</button>
+                                        </form>
+                                    @endhasanyrole
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+                <p x-show="filteredRentals.length === 0" class="px-4 py-6 text-center text-moto-muted">Нет действующих
+                    резервов.</p>
+            </div>
         </div>
 
         <!-- Modal -->
@@ -169,7 +372,7 @@
                     <div x-show="modal.bookings.length" class="space-y-1">
                         <p class="text-sm text-moto-muted">Существующие аренды:</p>
                         <ul class="text-sm">
-                            <template x-for="booking in modal.bookings" :key="booking.started_at">
+                            <template x-for="(booking, index) in modal.bookings" :key="index">
                                 <li class="text-moto-text mb-1"
                                     x-text="booking.renter + ' — ' + booking.started_at + ' / ' + booking.ended_at"></li>
                             </template>
