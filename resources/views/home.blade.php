@@ -224,7 +224,7 @@
         <!-- List -->
         <div x-show="view === 'list'" class="bg-moto-card border border-neutral-700 rounded-xl overflow-hidden"
             style="display: none;">
-            <table class="min-w-full text-sm text-left">
+            <table class="hidden sm:table min-w-full text-sm text-left">
                 <thead class="bg-neutral-800 text-moto-muted">
                     <tr>
                         <th class="px-4 py-3 font-medium">Мотоцикл</th>
@@ -297,11 +297,76 @@
                     </template>
                 </tbody>
             </table>
+
+            <!-- Mobile cards (list view) -->
+            <div class="sm:hidden space-y-4 p-4">
+                <template x-for="m in filteredMotorcycles" :key="m.id">
+                    <div class="bg-neutral-800/50 border border-neutral-700 rounded-lg p-4" x-data="{ open: false }">
+                        <div class="flex items-start justify-between gap-3 mb-2">
+                            <div>
+                                <div class="font-medium text-moto-text" x-text="m.name"></div>
+                                <div class="text-xs text-moto-muted"
+                                    x-text="m.year + ' г.' + (m.state_number ? ' · ' + m.state_number : '')"></div>
+                            </div>
+                            <span
+                                :class="m.status === 'free' ? 'bg-green-900/40 text-green-400 border border-green-800' :
+                                    'bg-red-900/40 text-red-400 border border-red-800'"
+                                class="px-2 py-1 rounded text-xs font-medium whitespace-nowrap"
+                                x-text="m.status === 'free' ? 'Свободен' : 'В аренде'"></span>
+                        </div>
+                        <div class="text-xs text-moto-muted mb-2" x-show="m.active">
+                            <span x-text="'Арендатор: ' + m.active?.renter"></span><br>
+                            <span
+                                x-text="'С: ' + m.active?.started_at + (m.active?.ended_at ? ' по ' + m.active?.ended_at : '')"></span>
+                        </div>
+                        <div class="text-xs text-moto-muted mb-2" x-show="m.upcoming && !m.active">
+                            <span x-text="'След. бронь: ' + m.upcoming?.renter"></span><br>
+                            <span
+                                x-text="'С: ' + m.upcoming?.started_at + (m.upcoming?.ended_at ? ' по ' + m.upcoming?.ended_at : '')"></span>
+                        </div>
+                        <div class="text-xs text-moto-muted mb-3" x-text="m.comment || ''" x-show="m.comment"></div>
+                        @hasanyrole(['admin', 'manager'])
+                            <div class="flex gap-2">
+                                <button @click="openReserve(m)"
+                                    class="flex-1 bg-moto-orange hover:bg-moto-orange-dark text-white py-2 rounded text-xs font-medium transition">Зарезервировать</button>
+                                <button @click="open = !open"
+                                    class="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 rounded text-xs transition"
+                                    x-text="open ? 'Скрыть' : 'Брони'"></button>
+                            </div>
+                            <div x-show="open" class="mt-3 text-xs" x-cloak>
+                                <p class="font-medium mb-1 text-moto-muted">Все резервы:</p>
+                                <ul class="space-y-2">
+                                    <template x-for="b in m.rentals" :key="b.id">
+                                        <li
+                                            class="flex flex-wrap items-center justify-between gap-2 bg-neutral-800/50 border border-neutral-700 rounded px-3 py-2">
+                                            <span class="text-moto-text"
+                                                x-text="b.renter + ' — ' + b.started_at + ' / ' + b.ended_at"></span>
+                                            <div class="flex gap-2">
+                                                <button type="button" @click="openEditRental(b, m)"
+                                                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 rounded text-xs transition">Изменить</button>
+                                                <form method="POST" :action="'/rentals/' + b.id" class="contents"
+                                                    onsubmit="return confirm('Отменить резерв?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit"
+                                                        class="px-2 py-1 bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded text-xs transition">Отменить</button>
+                                                </form>
+                                            </div>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        @endhasanyrole
+                    </div>
+                </template>
+            </div>
+
             <p x-show="filteredMotorcycles.length === 0" class="px-4 py-6 text-center text-moto-muted">Нет мотоциклов.</p>
         </div>
 
         <!-- Grid -->
-        <div x-show="view === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+        <div x-show="view === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            style="display: none;">
             <template x-for="m in filteredMotorcycles" :key="m.id">
                 <div class="bg-moto-card rounded-xl border border-neutral-700 p-5 shadow-md flex flex-col justify-between">
                     <div>
