@@ -22,6 +22,17 @@
                             'ended_at' => $m->activeRental->ended_at?->format('d.m.Y H:i') ?? null,
                         ]
                         : null,
+                    'busy_ranges' => $m->rentals
+                        ->where('status', \App\Enums\RentalStatus::Rented)
+                        ->map(
+                            fn(\App\Models\Rental $r) => [
+                                'id' => $r->id,
+                                'start' => $r->started_at->toIso8601String(),
+                                'end' => ($r->ended_at ?? $r->started_at->copy()->addYears(10))->toIso8601String(),
+                            ],
+                        )
+                        ->values()
+                        ->toArray(),
                     'upcoming' => $m->upcomingRental
                         ? [
                             'id' => $m->upcomingRental->id,
@@ -81,7 +92,8 @@
                 open: false,
                 id: null,
                 name: '',
-                bookings: []
+                bookings: [],
+                pickers: null,
             },
             editModal: {
                 open: false,
@@ -93,6 +105,8 @@
                     total_amount_byn: '',
                     comment: '',
                 },
+                busyRanges: [],
+                pickers: null,
             },
             motorcycles: window.homeData.motorcycles,
             activeRentals: window.homeData.activeRentals,
@@ -113,25 +127,59 @@
                 );
             },
             openReserve(m) {
+                this.modal.pickers?.destroy();
                 this.modal = {
                     open: true,
                     id: m.id,
                     name: m.name,
-                    bookings: m.rentals
+                    bookings: m.rentals,
+                    pickers: null,
                 };
+                this.$nextTick(() => {
+                    this.modal.pickers = window.createRentalRangePickers({
+                        startInput: this.$refs.createStartInput,
+                        endInput: this.$refs.createEndInput,
+                        busyRanges: m.busy_ranges,
+                    });
+                });
             },
-            openEditRental(rental) {
+            openEditRental(rental, motorcycle) {
+                this.editModal.pickers?.destroy();
                 this.editModal = {
                     open: true,
                     rental: {
                         ...rental
                     },
+                    busyRanges: motorcycle.busy_ranges,
+                    pickers: null,
                 };
+                this.$nextTick(() => {
+                    this.editModal.pickers = window.createRentalRangePickers({
+                        startInput: this.$refs.editStartInput,
+                        endInput: this.$refs.editEndInput,
+                        busyRanges: motorcycle.busy_ranges,
+                        excludeRentalId: rental.id,
+                    });
+                    this.editModal.pickers.start.setDate(rental.started_at_input, true);
+                    if (rental.ended_at_input) {
+                        this.editModal.pickers.end.setDate(rental.ended_at_input, true);
+                    }
+                });
+            },
+            closeReserveModal() {
+                this.modal.pickers?.destroy();
+                this.modal.pickers = null;
+                this.modal.open = false;
+            },
+            closeEditModal() {
+                this.editModal.pickers?.destroy();
+                this.editModal.pickers = null;
+                this.editModal.open = false;
             },
         });
     </script>
 
-    <div x-data="homeApp()" x-init="$watch('view', v => localStorage.setItem('homeView', v))" @keydown.escape.window="modal.open = false; editModal.open = false">
+    <div x-data="homeApp()" x-init="$watch('view', v => localStorage.setItem('homeView', v))" @keydown.escape.window="closeReserveModal(); closeEditModal()">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <h1 class="text-2xl font-semibold text-moto-orange">Парк мотоциклов</h1>
             @hasanyrole(['admin', 'manager'])
@@ -229,7 +277,7 @@
                                                     <span class="text-moto-text"
                                                         x-text="b.renter + ' — ' + b.started_at + ' / ' + b.ended_at"></span>
                                                     <div class="flex gap-2">
-                                                        <button type="button" @click="openEditRental(b)"
+                                                        <button type="button" @click="openEditRental(b, m)"
                                                             class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 rounded text-xs transition">Изменить</button>
                                                         <form method="POST" :action="'/rentals/' + b.id" class="contents"
                                                             onsubmit="return confirm('Отменить резерв?')">
@@ -300,7 +348,7 @@
                                             <span class="text-moto-text"
                                                 x-text="b.renter + ' — ' + b.started_at + ' / ' + b.ended_at"></span>
                                             <div class="flex gap-2">
-                                                <button type="button" @click="openEditRental(b)"
+                                                <button type="button" @click="openEditRental(b, m)"
                                                     class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 rounded text-xs transition">Изменить</button>
                                                 <form method="POST" :action="'/rentals/' + b.id" class="contents"
                                                     onsubmit="return confirm('Отменить резерв?')">
@@ -366,7 +414,7 @@
 
         <!-- Modal -->
         <div x-show="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
-            <div class="absolute inset-0 bg-black/70" @click="modal.open = false"></div>
+            <div class="absolute inset-0 bg-black/70" @click="closeReserveModal()"></div>
             <div class="relative bg-moto-card w-full max-w-lg rounded-xl border border-neutral-700 p-6 shadow-2xl">
                 <h2 class="text-xl font-semibold text-moto-orange mb-1" x-text="modal.name"></h2>
                 <p class="text-sm text-moto-muted mb-5">Новая аренда</p>
@@ -388,12 +436,14 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm text-moto-muted mb-1">Дата с</label>
-                            <input type="datetime-local" name="started_at" required
+                            <input type="text" name="started_at" x-ref="createStartInput" autocomplete="off"
+                                placeholder="Выберите дату и время"
                                 class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">
                         </div>
                         <div>
                             <label class="block text-sm text-moto-muted mb-1">Дата по</label>
-                            <input type="datetime-local" name="ended_at" required
+                            <input type="text" name="ended_at" x-ref="createEndInput" autocomplete="off"
+                                placeholder="Выберите дату и время"
                                 class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">
                         </div>
                     </div>
@@ -421,7 +471,7 @@
                     </div>
 
                     <div class="flex justify-end gap-3 pt-2">
-                        <button type="button" @click="modal.open = false"
+                        <button type="button" @click="closeReserveModal()"
                             class="px-4 py-2 rounded bg-neutral-700 hover:bg-neutral-600 text-sm">Отмена</button>
                         <button type="submit"
                             class="px-4 py-2 rounded bg-moto-orange hover:bg-moto-orange-dark text-white text-sm font-medium">Сохранить</button>
@@ -433,7 +483,7 @@
         <!-- Edit rental modal -->
         <div x-show="editModal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4"
             style="display: none;" x-cloak>
-            <div class="absolute inset-0 bg-black/70" @click="editModal.open = false"></div>
+            <div class="absolute inset-0 bg-black/70" @click="closeEditModal()"></div>
             <div class="relative bg-moto-card w-full max-w-lg rounded-xl border border-neutral-700 p-6 shadow-2xl">
                 <h2 class="text-xl font-semibold text-moto-orange mb-1">Редактировать аренду</h2>
                 <p class="text-sm text-moto-muted mb-5"
@@ -457,13 +507,14 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm text-moto-muted mb-1">Дата с</label>
-                            <input type="datetime-local" name="started_at" required
-                                x-model="editModal.rental.started_at_input"
+                            <input type="text" name="started_at" x-ref="editStartInput" autocomplete="off"
+                                placeholder="Выберите дату и время"
                                 class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">
                         </div>
                         <div>
                             <label class="block text-sm text-moto-muted mb-1">Дата по</label>
-                            <input type="datetime-local" name="ended_at" x-model="editModal.rental.ended_at_input"
+                            <input type="text" name="ended_at" x-ref="editEndInput" autocomplete="off"
+                                placeholder="Выберите дату и время"
                                 class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">
                         </div>
                     </div>
@@ -484,7 +535,7 @@
                     <input type="hidden" name="status" value="rented">
 
                     <div class="flex justify-end gap-3 pt-2">
-                        <button type="button" @click="editModal.open = false"
+                        <button type="button" @click="closeEditModal()"
                             class="px-4 py-2 rounded bg-neutral-700 hover:bg-neutral-600 text-sm">Отмена</button>
                         <button type="submit"
                             class="px-4 py-2 rounded bg-moto-orange hover:bg-moto-orange-dark text-white text-sm font-medium">Сохранить</button>
