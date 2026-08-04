@@ -16,6 +16,7 @@
                     <th class="px-4 py-3 font-medium">Название</th>
                     <th class="px-4 py-3 font-medium">Slug</th>
                     <th class="px-4 py-3 font-medium">Год</th>
+                    <th class="px-4 py-3 font-medium">Госномер</th>
                     <th class="px-4 py-3 font-medium">Статус</th>
                     <th class="px-4 py-3 font-medium">Действия</th>
                 </tr>
@@ -26,6 +27,7 @@
                         <td class="px-4 py-3">{{ $motorcycle->name }}</td>
                         <td class="px-4 py-3 text-moto-muted">{{ $motorcycle->slug }}</td>
                         <td class="px-4 py-3">{{ $motorcycle->year }}</td>
+                        <td class="px-4 py-3">{{ $motorcycle->state_number }}</td>
                         <td class="px-4 py-3">
                             @if ($motorcycle->currentStatus()->value === 'free')
                                 <span class="text-green-400">Свободен</span>
@@ -55,7 +57,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="px-4 py-6 text-center text-moto-muted">Нет мотоциклов</td>
+                        <td colspan="6" class="px-4 py-6 text-center text-moto-muted">Нет мотоциклов</td>
                     </tr>
                 @endforelse
             </tbody>

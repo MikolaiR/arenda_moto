@@ -28,6 +28,7 @@ class MotorcycleController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'year' => ['required', 'integer', 'min:1900', 'max:' . (date('Y') + 1)],
+            'state_number' => ['nullable', 'string', 'max:20'],
             'comment' => ['nullable', 'string'],
         ]);
 
@@ -55,6 +56,7 @@ class MotorcycleController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'year' => ['required', 'integer', 'min:1900', 'max:' . (date('Y') + 1)],
+            'state_number' => ['nullable', 'string', 'max:20'],
             'comment' => ['nullable', 'string'],
         ]);
 

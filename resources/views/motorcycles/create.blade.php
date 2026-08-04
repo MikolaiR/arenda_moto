@@ -28,6 +28,15 @@
         </div>
 
         <div>
+            <label class="block text-sm text-moto-muted mb-1">Госномер</label>
+            <input type="text" name="state_number" value="{{ old('state_number') }}"
+                class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">
+            @error('state_number')
+                <p class="text-red-400 text-sm">{{ $message }}</p>
+            @enderror
+        </div>
+
+        <div>
             <label class="block text-sm text-moto-muted mb-1">Комментарий</label>
             <textarea name="comment" rows="3"
                 class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">{{ old('comment') }}</textarea>

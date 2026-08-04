@@ -13,6 +13,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('slug')->unique();
             $table->unsignedSmallInteger('year');
+            $table->string('state_number')->nullable();
             $table->text('comment')->nullable();
             $table->softDeletes();
             $table->timestamps();

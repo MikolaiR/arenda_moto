@@ -9,31 +9,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use App\Traits\Slug;
 
-#[Fillable(['name', 'slug', 'year', 'comment'])]
+#[Fillable(['name', 'slug', 'year', 'state_number', 'comment'])]
 class Motorcycle extends Model
 {
-    use HasFactory, SoftDeletes;
-
-    protected static function booted(): void
-    {
-        static::creating(function (Motorcycle $motorcycle) {
-            if (empty($motorcycle->slug)) {
-                $motorcycle->slug = (string) Str::ulid();
-            }
-        });
-
-        static::created(function (Motorcycle $motorcycle) {
-            $motorcycle->slug = $motorcycle->id . '-' . Str::slug($motorcycle->name) . '-' . $motorcycle->year;
-            $motorcycle->saveQuietly();
-        });
-
-        static::updating(function (Motorcycle $motorcycle) {
-            if ($motorcycle->isDirty('name') || $motorcycle->isDirty('year')) {
-                $motorcycle->slug = $motorcycle->id . '-' . Str::slug($motorcycle->name) . '-' . $motorcycle->year;
-            }
-        });
-    }
+    use HasFactory, SoftDeletes, Slug;
 
     public function rentals(): HasMany
     {
