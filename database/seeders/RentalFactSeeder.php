@@ -29,7 +29,7 @@ class RentalFactSeeder extends Seeder
 
         $facts = [
             [
-                'motorcycle' => 'Yamaha XVS-650',
+                'motorcycle' => 'YAMAHA XVS650 DRAGSTAR',
                 'renter' => 'Тишкевич Сергей',
                 'started_at' => '2026-07-18 20:00',
                 'ended_at' => '2026-07-19 20:00',
@@ -38,7 +38,7 @@ class RentalFactSeeder extends Seeder
                 'comment' => '2 шлема',
             ],
             [
-                'motorcycle' => 'HD Softail Deluxe',
+                'motorcycle' => 'HARLEY-DAVIDSON SOFTAIL DELUXE',
                 'renter' => 'Дорошенко Дмитрий',
                 'started_at' => '2026-07-19 10:00',
                 'ended_at' => '2026-07-20 10:00',
@@ -47,7 +47,7 @@ class RentalFactSeeder extends Seeder
                 'comment' => null,
             ],
             [
-                'motorcycle' => 'Yamaha XVS-650',
+                'motorcycle' => 'YAMAHA XVS650 DRAGSTAR',
                 'renter' => 'Шматько Дмитрий',
                 'started_at' => '2026-07-19 20:00',
                 'ended_at' => '2026-07-20 20:00',
@@ -56,7 +56,7 @@ class RentalFactSeeder extends Seeder
                 'comment' => null,
             ],
             [
-                'motorcycle' => 'Yamaha XVS-650',
+                'motorcycle' => 'YAMAHA XVS650 DRAGSTAR',
                 'renter' => 'Лакиник Игорь',
                 'started_at' => '2026-07-22 13:00',
                 'ended_at' => '2026-07-22 21:00',
@@ -65,7 +65,7 @@ class RentalFactSeeder extends Seeder
                 'comment' => null,
             ],
             [
-                'motorcycle' => 'HD Electra Glide',
+                'motorcycle' => 'HARLEY-DAVIDSON ELECTRA GLIDE FLHTCUI',
                 'renter' => 'Бакланов Алексей',
                 'started_at' => '2026-08-02 11:00',
                 'ended_at' => '2026-08-04 21:00',
@@ -74,7 +74,7 @@ class RentalFactSeeder extends Seeder
                 'comment' => '58000 РФ, аванс 11000',
             ],
             [
-                'motorcycle' => 'HD Softail Deluxe',
+                'motorcycle' => 'HARLEY-DAVIDSON SOFTAIL DELUXE',
                 'renter' => 'Бакланов Алексей',
                 'started_at' => '2026-08-02 11:00',
                 'ended_at' => '2026-08-04 21:00',
@@ -83,7 +83,7 @@ class RentalFactSeeder extends Seeder
                 'comment' => '58000 РФ, аванс 11000',
             ],
             [
-                'motorcycle' => 'HD Electra Glide',
+                'motorcycle' => 'HARLEY-DAVIDSON ELECTRA GLIDE FLHTCUI',
                 'renter' => 'Филицкий Антон',
                 'started_at' => '2026-08-05 12:00',
                 'ended_at' => '2026-08-08 12:00',
