@@ -34,9 +34,14 @@
                         ->map(
                             fn(\App\Models\Rental $r) => [
                                 'id' => $r->id,
+                                'renter_id' => $r->renter_id,
                                 'renter' => $r->renter?->name,
                                 'started_at' => $r->started_at->format('d.m.Y H:i'),
+                                'started_at_input' => $r->started_at->format('Y-m-d\TH:i'),
                                 'ended_at' => $r->ended_at?->format('d.m.Y H:i') ?? '—',
+                                'ended_at_input' => $r->ended_at?->format('Y-m-d\TH:i') ?? '',
+                                'total_amount_byn' => $r->total_amount_byn,
+                                'comment' => $r->comment ?? '',
                             ],
                         )
                         ->values()
@@ -78,6 +83,17 @@
                 name: '',
                 bookings: []
             },
+            editModal: {
+                open: false,
+                rental: {
+                    id: null,
+                    renter_id: '',
+                    started_at_input: '',
+                    ended_at_input: '',
+                    total_amount_byn: '',
+                    comment: '',
+                },
+            },
             motorcycles: window.homeData.motorcycles,
             activeRentals: window.homeData.activeRentals,
             get filteredMotorcycles() {
@@ -104,10 +120,18 @@
                     bookings: m.rentals
                 };
             },
+            openEditRental(rental) {
+                this.editModal = {
+                    open: true,
+                    rental: {
+                        ...rental
+                    },
+                };
+            },
         });
     </script>
 
-    <div x-data="homeApp()" x-init="$watch('view', v => localStorage.setItem('homeView', v))" @keydown.escape.window="modal.open = false">
+    <div x-data="homeApp()" x-init="$watch('view', v => localStorage.setItem('homeView', v))" @keydown.escape.window="modal.open = false; editModal.open = false">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <h1 class="text-2xl font-semibold text-moto-orange">Парк мотоциклов</h1>
             @hasanyrole(['admin', 'manager'])
@@ -192,28 +216,30 @@
                                     <div class="flex flex-wrap gap-2">
                                         <button @click="openReserve(m)"
                                             class="px-3 py-1.5 bg-moto-orange hover:bg-moto-orange-dark text-white rounded text-xs font-medium transition">Зарезервировать</button>
-                                        <template x-if="m.active">
-                                            <form method="POST" :action="'/rentals/' + m.active?.id" class="contents"
-                                                onsubmit="return confirm('Завершить аренду?')">
-                                                @csrf
-                                                @method('PATCH')
-                                                <input type="hidden" name="status" value="free">
-                                                <input type="hidden" name="started_at" :value="m.active?.started_at_input">
-                                                <button type="submit"
-                                                    class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 rounded text-xs font-medium transition">Завершить</button>
-                                            </form>
-                                        </template>
-                                        <a :href="'/motorcycles/' + m.id + '/edit'"
-                                            class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 rounded text-xs font-medium transition">Изм.</a>
                                         <button @click="open = !open"
                                             class="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 rounded text-xs transition"
                                             x-text="open ? 'Скрыть' : 'Брони'"></button>
                                     </div>
-                                    <div x-show="open" class="mt-3 text-xs text-moto-muted" x-cloak>
-                                        <p class="font-medium mb-1">Все резервы:</p>
-                                        <ul class="space-y-1">
+                                    <div x-show="open" class="mt-3 text-xs" x-cloak>
+                                        <p class="font-medium mb-1 text-moto-muted">Все резервы:</p>
+                                        <ul class="space-y-2">
                                             <template x-for="b in m.rentals" :key="b.id">
-                                                <li x-text="b.renter + ' — ' + b.started_at + ' / ' + b.ended_at"></li>
+                                                <li
+                                                    class="flex flex-wrap items-center justify-between gap-2 bg-neutral-800/50 border border-neutral-700 rounded px-3 py-2">
+                                                    <span class="text-moto-text"
+                                                        x-text="b.renter + ' — ' + b.started_at + ' / ' + b.ended_at"></span>
+                                                    <div class="flex gap-2">
+                                                        <button type="button" @click="openEditRental(b)"
+                                                            class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 rounded text-xs transition">Изменить</button>
+                                                        <form method="POST" :action="'/rentals/' + b.id" class="contents"
+                                                            onsubmit="return confirm('Отменить резерв?')">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit"
+                                                                class="px-2 py-1 bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded text-xs transition">Отменить</button>
+                                                        </form>
+                                                    </div>
+                                                </li>
                                             </template>
                                         </ul>
                                     </div>
@@ -257,22 +283,37 @@
                         </p>
                     </div>
                     @hasanyrole(['admin', 'manager'])
-                        <div class="flex gap-2 mt-4">
-                            <button @click="openReserve(m)"
-                                class="flex-1 bg-moto-orange hover:bg-moto-orange-dark text-white py-2 rounded text-sm font-medium transition">Зарезервировать</button>
-                            <template x-if="m.active">
-                                <form method="POST" :action="'/rentals/' + m.active?.id" class="contents"
-                                    onsubmit="return confirm('Завершить аренду?')">
-                                    @csrf
-                                    @method('PATCH')
-                                    <input type="hidden" name="status" value="free">
-                                    <input type="hidden" name="started_at" :value="m.active?.started_at_input">
-                                    <button type="submit"
-                                        class="flex-1 bg-neutral-700 hover:bg-neutral-600 py-2 rounded text-sm font-medium transition">Завершить</button>
-                                </form>
-                            </template>
-                            <a :href="'/motorcycles/' + m.id + '/edit'"
-                                class="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 rounded text-sm">Изм.</a>
+                        <div x-data="{ open: false }">
+                            <div class="flex gap-2 mt-4">
+                                <button @click="openReserve(m)"
+                                    class="flex-1 bg-moto-orange hover:bg-moto-orange-dark text-white py-2 rounded text-sm font-medium transition">Зарезервировать</button>
+                                <button @click="open = !open"
+                                    class="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 rounded text-sm transition"
+                                    x-text="open ? 'Скрыть' : 'Брони'"></button>
+                            </div>
+                            <div x-show="open" class="mt-3 text-xs" x-cloak>
+                                <p class="font-medium mb-1 text-moto-muted">Все резервы:</p>
+                                <ul class="space-y-2">
+                                    <template x-for="b in m.rentals" :key="b.id">
+                                        <li
+                                            class="flex flex-wrap items-center justify-between gap-2 bg-neutral-800/50 border border-neutral-700 rounded px-3 py-2">
+                                            <span class="text-moto-text"
+                                                x-text="b.renter + ' — ' + b.started_at + ' / ' + b.ended_at"></span>
+                                            <div class="flex gap-2">
+                                                <button type="button" @click="openEditRental(b)"
+                                                    class="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 rounded text-xs transition">Изменить</button>
+                                                <form method="POST" :action="'/rentals/' + b.id" class="contents"
+                                                    onsubmit="return confirm('Отменить резерв?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit"
+                                                        class="px-2 py-1 bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded text-xs transition">Отменить</button>
+                                                </form>
+                                            </div>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
                         </div>
                     @endhasanyrole
                 </div>
@@ -381,6 +422,69 @@
 
                     <div class="flex justify-end gap-3 pt-2">
                         <button type="button" @click="modal.open = false"
+                            class="px-4 py-2 rounded bg-neutral-700 hover:bg-neutral-600 text-sm">Отмена</button>
+                        <button type="submit"
+                            class="px-4 py-2 rounded bg-moto-orange hover:bg-moto-orange-dark text-white text-sm font-medium">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit rental modal -->
+        <div x-show="editModal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style="display: none;" x-cloak>
+            <div class="absolute inset-0 bg-black/70" @click="editModal.open = false"></div>
+            <div class="relative bg-moto-card w-full max-w-lg rounded-xl border border-neutral-700 p-6 shadow-2xl">
+                <h2 class="text-xl font-semibold text-moto-orange mb-1">Редактировать аренду</h2>
+                <p class="text-sm text-moto-muted mb-5"
+                    x-text="editModal.rental?.renter + ' — ' + editModal.rental?.started_at"></p>
+
+                <form method="POST" :action="'/rentals/' + editModal.rental?.id" class="space-y-4">
+                    @csrf
+                    @method('PATCH')
+
+                    <div>
+                        <label class="block text-sm text-moto-muted mb-1">Арендатор</label>
+                        <select name="renter_id" required x-model="editModal.rental.renter_id"
+                            class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">
+                            <option value="">Выберите арендатора</option>
+                            @foreach ($renters as $renter)
+                                <option value="{{ $renter->id }}">{{ $renter->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-moto-muted mb-1">Дата с</label>
+                            <input type="datetime-local" name="started_at" required
+                                x-model="editModal.rental.started_at_input"
+                                class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-moto-muted mb-1">Дата по</label>
+                            <input type="datetime-local" name="ended_at" x-model="editModal.rental.ended_at_input"
+                                class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-moto-muted mb-1">Сумма аренды, BYN</label>
+                        <input type="number" step="0.01" min="0" name="total_amount_byn"
+                            x-model="editModal.rental.total_amount_byn"
+                            class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-moto-muted mb-1">Комментарий</label>
+                        <textarea name="comment" rows="3" x-model="editModal.rental.comment"
+                            class="w-full bg-neutral-800 border border-neutral-600 rounded px-3 py-2 text-moto-text focus:border-moto-orange focus:outline-none"></textarea>
+                    </div>
+
+                    <input type="hidden" name="status" value="rented">
+
+                    <div class="flex justify-end gap-3 pt-2">
+                        <button type="button" @click="editModal.open = false"
                             class="px-4 py-2 rounded bg-neutral-700 hover:bg-neutral-600 text-sm">Отмена</button>
                         <button type="submit"
                             class="px-4 py-2 rounded bg-moto-orange hover:bg-moto-orange-dark text-white text-sm font-medium">Сохранить</button>
